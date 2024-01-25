@@ -59,10 +59,8 @@ module axi_stream_insert_header #(
          reg last_out_store = 0;
          reg [DATA_BYTE_WD-1 : 0] keep_out_store = 0;
          reg start_en;
-         reg start_data;
          wire [BYTE_CNT_WD-1 : 0] ones_count_temp;
          reg first = 0;
-         integer byte_index_i,byte_index_j;
          
          wire [BYTE_CNT_WD : 0]   byte_cnt; // 表示keep_insert 1的个数，e.g. keep_insert（1110）--> byte_cnt(2)
         
@@ -185,14 +183,11 @@ module axi_stream_insert_header #(
           always @(*) begin
             if(!rst_n) begin
                 first <= 0;
-                start_data <= 0;
              end
             if(!first && (valid_in && ready_in))begin // 第一次得到数据
                 first <= 1;              
             end
-            if(first && (valid_out && ready_out))begin
-                start_data <= 1;
-            end
+
          end
 
           // 1-bit 计算模块
