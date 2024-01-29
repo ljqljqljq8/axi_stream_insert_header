@@ -119,25 +119,25 @@ module axi_stream_insert_header #(
                                     ((data_temp & (((1 << ((DATA_BYTE_WD-byte_cnt) << 3)) - 1) << (byte_cnt << 3))) >>> (byte_cnt << 3));  // 位拼接逻辑
 
         
-        assign  ready_in        =  start_en ? (last_out_store ? 0 : !buf_valid) : 0;
+        assign  ready_in          =  start_en ? (last_out_store ? 0 : !buf_valid) : 0;
         // 判断逻辑 ：只有在接收到header才有效并且在接收到最后一个数据后不再接收
-        assign  valid_out       =  start_en ? (rst_n && (valid_in || (buf_valid^last_out_store))): 0;
+        assign  valid_out         =  start_en ? (rst_n && (valid_in || (buf_valid^last_out_store))): 0;
         // 判断逻辑 ：只有在接收到header才有效并且在接收到最后一个数据后需将缓存清空才可以输出
          
-        assign  data_temp       =  start_en ? (last_out_reg ? data_reg_last : ((first ? ((ready_out &&valid_out) ? (buf_valid ? buf_data : data_in) : data_temp) : data_reg))) : 0;
-        assign  data_temp_last  =  start_en ? ((ready_out && valid_out) ? data_temp_store : data_temp_last) : 0;
+        assign  data_temp         =  start_en ? (last_out_reg ? data_reg_last : ((first ? ((ready_out &&valid_out) ? (buf_valid ? buf_data : data_in) : data_temp) : data_reg))) : 0;
+        assign  data_temp_last    =  start_en ? ((ready_out && valid_out) ? data_temp_store : data_temp_last) : 0;
          // 判断逻辑 ：         接收到header表示准备数据的传输start_en有效，否则data_temp为0-->
          // 若接收到的不是最后一拍数据，则进行第一拍数据的判断,否则data_temp为最后一拍数据-->
          // 如果已经接收到了第一拍数据，则进行buffer判断，查看数据是否在buffer中，否则data_temp为header数据
          // 由于数据需要重组拼接，需要在输出方未握手下保留前一拍数据，故进行握手判断
-        assign  data_out        =  concatenated_data ; 
-        assign  ones_count_temp =  count_one(keep_out_store);// 计算1的位数，通过线网连接即时更新
+        assign  data_out          =  concatenated_data ; 
+        assign  ones_count_temp   =  count_one(keep_out_store);// 计算1的位数，通过线网连接即时更新
          
-        reg     last_out_reg    =  0;
+        reg     last_out_reg      =  0;
         // last_out_reg标记最后一个输入数据(可能含有最后一个数据的无效位)，(ones_count_temp + byte_cnt) <= DATA_BYTE_WD)时，表明加上header的发送数据数量和原数据相同
-        assign  last_out        =  (((ones_count_temp + byte_cnt) <= DATA_BYTE_WD)) ?  (last_out_reg ? 0 : (last_out_store && (!buf_valid))) : last_out_reg;
+        assign  last_out          =  (((ones_count_temp + byte_cnt) <= DATA_BYTE_WD)) ?  (last_out_reg ? 0 : (last_out_store && (!buf_valid))) : last_out_reg;
         // 若不是最后一个数据，则所有位均有效
-        assign  keep_out        =  last_out ? ((((ones_count_temp + byte_cnt) <= DATA_BYTE_WD)) ?  ((1 << (ones_count_temp + byte_cnt))-1) << (DATA_BYTE_WD-(ones_count_temp + byte_cnt)) :
+        assign  keep_out          =  last_out ? ((((ones_count_temp + byte_cnt) <= DATA_BYTE_WD)) ?  ((1 << (ones_count_temp + byte_cnt))-1) << (DATA_BYTE_WD-(ones_count_temp + byte_cnt)) :
                                               ((1 << (ones_count_temp + byte_cnt - DATA_BYTE_WD))-1) << (DATA_BYTE_WD - (ones_count_temp + byte_cnt - DATA_BYTE_WD))) : ((1 << DATA_BYTE_WD) - 1);
          
         always @ (posedge clk or negedge rst_n) begin
