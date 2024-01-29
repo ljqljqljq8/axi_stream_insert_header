@@ -55,14 +55,14 @@ module axi_stream_insert_header #(
 
         wire [DATA_WD:0]            concatenated_data;  // 用于数据重组
          
-        reg  [DATA_WD-1:0]          data_reg_last = 0;
-        reg  [DATA_WD-1:0]          data_reg = 0;
+	reg  [DATA_WD-1:0]          data_reg_last  = 0;
+	reg  [DATA_WD-1:0]          data_reg       = 0;
         reg                         last_out_store = 0;// 标记最后一个数据到来
-        reg                         last_out_reg = 0;
+        reg                         last_out_reg   = 0;
         reg  [DATA_BYTE_WD-1 : 0]   keep_out_store = 0;
-        reg                         start_en;
         wire [BYTE_CNT_WD : 0]      ones_count_temp;
-        reg                         first = 0;
+	reg                         start_en;
+        reg                         first          = 0;
         
         integer                     byte_index;
 
