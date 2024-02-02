@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Company: 
 // Engineer: LJQ
-// Description: 测试采用随机生成输入数据，如data_in，data_insert，有效位宽，接收方ready_out有效周期，适配于各种总线宽度，如16/32/64等
+// Description: 测试采用随机生成输入数据，如data_in，data_insert，有效位宽，valid_in,ready_out，适配于各种总线宽度，如16/32/64等
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 `define DATA_WIDTH 32
@@ -58,8 +58,6 @@ module skid_sim;
   
         reg [9:0] cnt;
         integer insert_index;
-        integer transfer_index; 
-        integer breakdown_index; 
 
         initial begin
                 clk = 0;
@@ -115,8 +113,8 @@ module skid_sim;
                                     ready_out <= 0;    // 随机崩溃周期
                                     @(posedge clk);
                                     end
-                                    ready_out <= 1; 
-*/
+                                    ready_out <= 1;                                                                                     */
+
                                end
                 end
         end
@@ -127,15 +125,7 @@ module skid_sim;
               valid_in <= 1;
             end
             else begin
-                
-                        for (transfer_index = {$random}%16 ; transfer_index > 0 ; transfer_index = transfer_index-1)begin
-                            valid_in <= 0;    // 随机传输有效周期
-                            @(posedge clk);
-                        end
-                        for (transfer_index = {$random}%16 ; transfer_index ; transfer_index = transfer_index-1)begin
-                            valid_in <= 1;    // 随机传输无效周期
-                            @(posedge clk);
-                        end
+                valid_in <= $random ;
             end
         end
         // ready_out的随即激励
@@ -144,15 +134,7 @@ module skid_sim;
               ready_out <= 1;
             end
             else begin
-                
-                        for (breakdown_index = {$random}%16 ; breakdown_index > 0 ; breakdown_index = breakdown_index-1)begin
-                            ready_out <= 0;    // 随机崩溃周期
-                            @(posedge clk);
-                        end
-                        for (breakdown_index = {$random}%16 ; breakdown_index ; breakdown_index = breakdown_index-1)begin
-                            ready_out <= 1;    // 随机正常周期
-                            @(posedge clk);
-                        end
+                ready_out <= $random ;
             end
         end
         
