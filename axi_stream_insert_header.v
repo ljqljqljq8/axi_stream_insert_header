@@ -15,8 +15,17 @@
 // Revision 0.01 - File Created
 // Additional Comments:
 // 
-//////////////////////////////////////////////////////////////////////////////////
 
+//////////////////////////////////////////////////////////////////////////////////
+/*
+                    Input                                   Output
+                    -----                                   ------
+                              --------------------------
+                    ready <--|                          |<-- ready
+                    valid -->|                          |--> valid
+                    data  -->|    internal buffer       |--> data
+                              --------------------------
+*/
 `timescale 1ns/1ns
 
 module axi_stream_insert_header #(
@@ -53,17 +62,17 @@ module axi_stream_insert_header #(
         reg                         buf_valid; // 指示缓存有数据
         reg  [DATA_WD-1:0]          buf_data;  // 用于数据暂存
 
-        wire [DATA_WD:0]            concatenated_data;  // 用于数据重组
+        wire [DATA_WD-1:0]          concatenated_data;  // 用于数据重组
          
         reg  [DATA_WD-1:0]          data_reg_last = 0;
         reg  [DATA_WD-1:0]          data_reg = 0;
         reg                         last_out_store = 0;// 标记最后一个数据到来
         reg                         last_out_reg = 0;
         reg  [DATA_BYTE_WD-1 : 0]   keep_out_store = 0;
-        reg                         start_en;
-        wire [BYTE_CNT_WD : 0]      ones_count_temp;
-        reg                         first = 0;
+        reg                         start_en;          // 指示接收到了header
+        reg                         first = 0;         // 指示数据可以开始传输
         
+        wire [BYTE_CNT_WD : 0]      ones_count_temp;
         integer                     byte_index;
 
          
@@ -133,7 +142,7 @@ module axi_stream_insert_header #(
         assign  data_out        =  concatenated_data ; 
         assign  ones_count_temp =  count_one(keep_out_store);// 计算1的位数，通过线网连接即时更新
          
-        reg     last_out_reg    =  0;
+         
         // last_out_reg标记最后一个输入数据(可能含有最后一个数据的无效位)，(ones_count_temp + byte_cnt) <= DATA_BYTE_WD)时，表明加上header的发送数据数量和原数据相同
         assign  last_out        =  (((ones_count_temp + byte_cnt) <= DATA_BYTE_WD)) ?  (last_out_reg ? 0 : (last_out_store && (!buf_valid))) : last_out_reg;
         // 若不是最后一个数据，则所有位均有效
@@ -146,22 +155,22 @@ module axi_stream_insert_header #(
             end
             else begin
                     if(last_out_store && (!buf_valid) && (ready_out && valid_out)) begin
-                        if((ones_count_temp + byte_cnt) <= DATA_BYTE_WD)begin  // 若满足此条件，说明最后一个数据的keep_in和插入header的keep_insert的1bit的总和大于DATA_BYTE_WD，总发送data数比发送方的data_in多1
+                        if((ones_count_temp + byte_cnt) <= DATA_BYTE_WD)begin  // 若满足此条件，说明最后一个数据的keep_in和插入header的keep_insert的1bit的总和不超过DATA_BYTE_WD，总发送data数和发送方的data_in相同
                             last_out_reg <= 1;
-                        end
-                        else begin
+                            first <= 0; 
+                        end 
+                       else begin
                             last_out_reg <= 1;
-                        end
-                        if(last_out_reg && (ready_out && valid_out)) begin
+                       end
+                    end
+                        if(last_out_reg) begin
                         // 完成一次传输，全部清空
                             last_out_reg <= 0;
                             last_out_store <= 0;
                             start_en <= 0;
                             data_reg <= 0;
                             first <= 0;
-                        end    
-  
-                    end
+                        end   
             end
         end
         
