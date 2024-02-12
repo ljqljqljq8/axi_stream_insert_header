@@ -80,7 +80,7 @@ module axi_stream_insert_header #(
         
         always @ (posedge clk or negedge rst_n) begin
             if(!rst_n) begin
-                ready_insert <= 1;//有个buf因此复位后至少可以收一个数据
+                ready_insert <= 1;
                 start_en <= 0;
             end
             else if(!start_en)
@@ -93,7 +93,7 @@ module axi_stream_insert_header #(
 		always @(posedge clk)
 		if      (!rst_n)
 			    buf_valid <= 0;
-		else if ((valid_in && ready_in) && (!ready_out) && start_en)
+		else if ((valid_in && ready_in) && (!ready_out) && start_en)// 有数据抵达但是输出端阻塞
 			    buf_valid <= 1;
 		else if (ready_out)
 			    buf_valid <= 0;
@@ -130,10 +130,10 @@ module axi_stream_insert_header #(
         
         assign  ready_in        =  start_en ? (last_out_store ? 0 : !buf_valid) : 0;
         // 判断逻辑 ：只有在接收到header才有效并且在接收到最后一个数据后不再接收
-        assign  valid_out       =  first ? (rst_n && (valid_in || (buf_valid^last_out_store))): 0;
-        // 判断逻辑 ：只有在接收到data后才有效并且在接收到最后一个数据后需将缓存清空才可以输出
+        assign  valid_out       =  first ? (rst_n && (valid_in || (buf_valid) || last_out_store)): 0;
+        // 判断逻辑 ：只有在接收到data后才有效并且在接收到最后一个数据后保持有效指示最后一个数据到来
          
-        assign  data_temp       =  start_en ? (last_out_reg ? data_reg_last : ((first ? ((ready_out &&valid_out) ? (buf_valid ? buf_data : data_in) : data_temp) : data_reg))) : 0;
+        assign  data_temp       =  start_en ? (last_out_reg ? data_reg_last : ((first ? ((ready_out && valid_out) ? (buf_valid ? buf_data : data_in) : data_temp) : data_reg))) : 0;
         assign  data_temp_last  =  start_en ? ((ready_out && valid_out) ? data_temp_store : data_temp_last) : 0;
          // 判断逻辑 ：         接收到header表示准备数据的传输start_en有效，否则data_temp为0-->
          // 若接收到的不是最后一拍数据，则进行第一拍数据的判断,否则data_temp为最后一拍数据-->
@@ -148,80 +148,83 @@ module axi_stream_insert_header #(
         // 若不是最后一个数据，则所有位均有效
         assign  keep_out        =  last_out ? ((((ones_count_temp + byte_cnt) <= DATA_BYTE_WD)) ?  ((1 << (ones_count_temp + byte_cnt))-1) << (DATA_BYTE_WD-(ones_count_temp + byte_cnt)) :
                                               ((1 << (ones_count_temp + byte_cnt - DATA_BYTE_WD))-1) << (DATA_BYTE_WD - (ones_count_temp + byte_cnt - DATA_BYTE_WD))) : ((1 << DATA_BYTE_WD) - 1);
-         
-        always @ (posedge clk or negedge rst_n) begin
+
+                  
+        assign byte_cnt =  (!start_en) ? (byte_insert_cnt + 1) : byte_cnt;      
+       
+        always @(posedge clk or negedge rst_n) begin
             if(!rst_n) begin
-                    last_out_reg <= 0;
+                start_en   <=   1'b0;
+                data_reg   <=   0;
+                first <= 0;
+                last_out_reg <= 0;
             end
             else begin
-                    if(last_out_store && (!buf_valid) && (ready_out && valid_out)) begin
-                        if((ones_count_temp + byte_cnt) <= DATA_BYTE_WD)begin  // 若满足此条件，说明最后一个数据的keep_in和插入header的keep_insert的1bit的总和不超过DATA_BYTE_WD，总发送data数和发送方的data_in相同
-                            last_out_reg <= 1;
-                            first <= 0; 
-                        end 
-                       else begin
-                            last_out_reg <= 1;
-                       end
+                if(valid_insert && ready_insert)begin 
+                    if(!start_en)begin/// 还未开始传header并且插入握手成功
+                        data_reg   <=   data_insert;
+                        start_en   <=   1'b1;  
                     end
-                        if(last_out_reg) begin
-                        // 完成一次传输，全部清空
+                end
+                if(valid_in && ready_in)begin 
+                    if(start_en && !first )begin// 第一次得到数据
+                        first <= 1;    
+                    end
+                end
+                if(ready_out && valid_out)begin 
+                    if(last_out_store && !buf_valid)begin// 最后一次得到数据
+                        if((ones_count_temp + byte_cnt) <= DATA_BYTE_WD)begin  // 若满足此条件，说明最后一个数据的keep_in和插入header的keep_insert的1bit的总和不超过DATA_BYTE_WD，总发送data数和发送方的data_in相同
                             last_out_reg <= 0;
-                            last_out_store <= 0;
-                            start_en <= 0;
-                            data_reg <= 0;
                             first <= 0;
-                        end   
+                            data_reg   <=   0;
+                            start_en   <=   1'b0;
+                            
+                        end 
+                        else begin
+                            last_out_reg <= 1;
+                        end
+                    end
+                    if(last_out_reg) begin// 完成一次传输
+                        last_out_reg <= 0;
+                        first <= 0;
+                        data_reg   <=   0;
+                        start_en   <=   1'b0;
+                    end   
+                end
+
             end
         end
         
-        
-        always @(posedge last_in or negedge rst_n) begin
+
+                                
+        always @(posedge last_in or negedge rst_n or negedge start_en) begin
                 if(!rst_n) begin
                     data_reg_last <= 0; // 寄存最后一个数据
                 end
-                if(last_in && start_en) begin    // 接收到最后一个数据        
+                if(last_in && first) begin    // 接收到最后一个数据        
                         for (byte_index = 0; byte_index < DATA_BYTE_WD; byte_index = byte_index + 1) begin
                             data_reg_last[((byte_index << 3) + 7) -: 8] <= (keep_in[byte_index] == 1) ? data_in[((byte_index << 3) + 7) -: 8] : 8'b0;
                         end
-                            last_out_store <= 1;
-                            keep_out_store <= keep_in;          
+                        last_out_store <= 1;
+                        keep_out_store <= keep_in;          
                 end
-        end
-           
-        assign byte_cnt =  byte_insert_cnt + 1;
-          
-        always @(posedge clk or negedge rst_n) begin
-                if(!rst_n) begin 
-                    data_reg   <=   0;
-                    start_en   <=   1'b0;
-                end
-                if(!start_en && (valid_insert && ready_insert))begin // 还未开始传header并且插入握手成功
-                    data_reg   <=   data_insert;
-                    start_en   <=   1'b1;
-                end
-
-        end
-         
-        always @(posedge clk or negedge rst_n) begin
-                if(!rst_n) begin
-                    first <= 0;
-                end
-                if(start_en && !first && (valid_in && ready_in))begin // 第一次得到数据
-                    first <= 1;              
-                end
+                if(!last_out_reg && !start_en) begin// 完成一次传输
+                    last_out_store <= 0;
+                end  
         end
 
-          // 1-bit 计算模块
+
+        //           1-bit 计算模块
         function [DATA_BYTE_WD-1:0] count_one;
                 input[DATA_BYTE_WD-1:0] binary_number;
-              
-                reg [BYTE_CNT_WD:0] CNT ;
+
+                reg [DATA_BYTE_WD-1:0] xor_number;
                 begin
-                    for (CNT = 0; binary_number ; CNT = CNT + 1) begin
-                        binary_number = binary_number & (binary_number-1);
-                    end
-                    count_one = CNT;
+                    xor_number = binary_number ^ {(DATA_BYTE_WD){1'b1}};
+                    count_one = (DATA_BYTE_WD) - $clog2(xor_number + 1);
                 end
-        endfunction
+  
+        endfunction  
+        
     
 endmodule
