@@ -89,26 +89,21 @@ module axi_stream_insert_header #(
                 ready_insert <= 0; 
         end
         
-        initial  buf_valid = 0;
-		always @(posedge clk)
-		if      (!rst_n)
-			    buf_valid <= 0;
-		else if ((valid_in && ready_in) && (!ready_out) && start_en)// 有数据抵达但是输出端阻塞
-			    buf_valid <= 1;
-		else if (ready_out)
-			    buf_valid <= 0;
-        
-
-         
-         always @ (posedge clk or negedge rst_n ) begin
-             if(!rst_n) //可能有些控制信号通过本模块的data端口进行传输，因此有必要进行复位。
-                begin
-                    buf_data <= 0;
+	always @(posedge clk or negedge rst_n) begin
+            if(!rst_n)begin
+                buf_valid <= 0;
+                buf_data <= 0;
+            end
+            else if (valid_in && ready_in) begin// 有数据抵达但是输出端阻塞
+                if(!ready_out && start_en) begin
+                    buf_valid <= 1;
+                    buf_data <=  data_in;
                 end
-             else if(!ready_out && (valid_in && ready_in)) // 当接收握手并且可以暂存时，更新buffer
-                    buf_data <=  start_en ? data_in : 0;
-         end
-         
+            end
+            else if (ready_out)
+                    buf_valid <= 0;
+	end
+	
          // 用于数据表示和交互
         wire [DATA_WD-1:0]   data_temp;
         wire [DATA_WD-1:0]   data_temp_last;
