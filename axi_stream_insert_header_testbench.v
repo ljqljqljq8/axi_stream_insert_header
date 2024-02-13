@@ -82,15 +82,16 @@ module skid_sim;
         integer breakdown_index; 
         
         reg [`DATA_WIDTH-1:0]insert_data;
+        reg [`DATA_WIDTH-1:0]first_data_in;
         wire [`DATA_WIDTH-1:0]insert_header;
         reg  [31:0] byte_index;
-        reg [`DATA_WIDTH-1:0]first_data;
+        wire [`DATA_WIDTH-1:0]first_data;
         wire [`DATA_WIDTH-1:0]last_data_in;
-        reg first_flag;
+        reg first_flag,first_in;
           
         reg [`DATA_WIDTH-1:0]data_out_last;
         
-        parameter CLK_PERIOD = 5; // 时钟周期为 10 个时间单位
+        parameter CLK_PERIOD = 1; // 时钟周期为 10 个时间单位
         parameter RESET_PERIOD = 10000; // 复位周期最大值
 
         initial begin
@@ -140,32 +141,46 @@ module skid_sim;
                 first_flag <= 0;
                 byte_index <= 0;
             end
-            else if (valid_insert && ready_insert)begin
-                if(!first_flag)begin
-                    first_flag <= 1;//$random ;
-                    byte_index <= byte_insert_cnt+1;
-                    insert_data <= data_insert;
+            else begin
+                if (valid_insert && ready_insert)begin
+                    if(!first_flag)begin
+                        first_flag <= 1;
+                        byte_index <= byte_insert_cnt+1;
+                        insert_data <= data_insert;
+                    end
                 end
-            end
-            else if (ready_out && valid_out)begin
-                if(last_out)begin
-                    first_flag <= 0;
+                if (ready_out && valid_out)begin
+                    if(last_out)begin
+                        first_flag <= 0;
+                    end
                 end
             end
         end
 
-         // 随机生成输入信号，当下级阻塞握手失败时data_in会保留
+        // 存储最后一个输入数据进行检测  
+        assign first_data = (cnt == 1 && first_flag && first_in) ? (insert_header | ((data_in & (((1 << ((`DATA_WIDTH / 8-(byte_index)) << 3)) - 1) << ((byte_index) << 3))) >>> ((byte_index) << 3))) : first_data;
         always @(posedge clk) begin
+            if (!rst_n) begin
+                first_in <= 0;
+            end
                 if (valid_insert && ready_insert)begin
                     if(!first_flag)begin
                         data_in <= {$random($time)} % ((1 << `DATA_WIDTH)-1);
                     end
                 end
-                if (ready_in && valid_in)begin    
-                    if (cnt == 1 && first_flag)  begin
-                        first_data <= insert_header | ((data_in & (((1 << ((`DATA_WIDTH / 8-(byte_index)) << 3)) - 1) << ((byte_index) << 3))) >>> ((byte_index) << 3));
-                    end
+                if (ready_in && valid_in)begin 
+                    if(first_flag && !first_in )begin// 第一次得到数据
+                        first_in <= 1;    
+                    end   
+//                    if (cnt == 1 && first_flag && first_in)  begin
+//                        first_data_in <= data_in;
+//                    end
                     data_in <= data_in + 1;
+                end
+                if (ready_out && valid_out)begin
+                    if(last_out)begin
+                        first_in <= 0;
+                    end
                 end
         end
         
