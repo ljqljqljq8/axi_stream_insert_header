@@ -81,7 +81,6 @@ module axi_stream_insert_header #(
         always @ (posedge clk or negedge rst_n) begin
             if(!rst_n) begin
                 ready_insert <= 1;
-                start_en <= 0;
             end
             else if(!start_en)
                 ready_insert <= 1;
