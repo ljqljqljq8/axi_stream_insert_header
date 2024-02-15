@@ -94,9 +94,11 @@ module axi_stream_insert_header #(
                 buf_data <= 0;
             end
             else if (valid_in && ready_in) begin// 有数据抵达但是输出端阻塞
-                if(!ready_out && start_en) begin
-                    buf_valid <= 1;
-                    buf_data <=  data_in;
+                if(!(ready_out && valid_out)) begin
+                    if(start_en)begin
+                        buf_valid <= 1;
+                        buf_data <=  data_in;
+                    end
                 end
             end
             else if (ready_out)
@@ -124,7 +126,7 @@ module axi_stream_insert_header #(
         
         assign  ready_in        =  start_en ? (last_out_store ? 0 : !buf_valid) : 0;
         // 判断逻辑 ：只有在接收到header才有效并且在接收到最后一个数据后不再接收
-        assign  valid_out       =  first ? (rst_n && (valid_in || (buf_valid) || last_out_store)): 0;
+        assign  valid_out       =  first ? (rst_n && (valid_in || (buf_valid) || last_out_store)) : 0;
         // 判断逻辑 ：只有在接收到data后才有效并且在接收到最后一个数据后保持有效指示最后一个数据到来
          
         assign  data_temp       =  start_en ? (last_out_reg ? data_reg_last : ((first ? ((ready_out && valid_out) ? (buf_valid ? buf_data : data_in) : data_temp) : data_reg))) : 0;
@@ -195,7 +197,7 @@ module axi_stream_insert_header #(
                 if(!rst_n) begin
                     data_reg_last <= 0; // 寄存最后一个数据
                 end
-                if(last_in && first) begin    // 接收到最后一个数据        
+                if(last_in && first && !last_out_store) begin    // 接收到最后一个数据        
                         for (byte_index = 0; byte_index < DATA_BYTE_WD; byte_index = byte_index + 1) begin
                             data_reg_last[((byte_index << 3) + 7) -: 8] <= (keep_in[byte_index] == 1) ? data_in[((byte_index << 3) + 7) -: 8] : 8'b0;
                         end
